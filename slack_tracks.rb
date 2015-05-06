@@ -175,7 +175,9 @@ class ITunesMonitor
         artist_url = get_itms_url('artistTerm': track_artist)
 
         msg = "<#{artist_url}|#{track_artist}> - <#{song_url}|#{track_name}>"
-        msg << "\n#{Google::Search::Image.new(:query => "#{track_artist} #{track_album}").first.uri}"
+        if CONF[:show_artwork]
+          msg << "\n#{Google::Search::Image.new(:query => "#{track_artist} #{track_album}").first.uri}"
+        end
         RestClient.post(CONF[:webhook], payload: {
           username: @username,
           icon_emoji: ':itunes:',
