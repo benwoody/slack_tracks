@@ -6,24 +6,35 @@ require "google-search"
 require "rest-client"
 require "yaml"
 
+def syscmd(cmd)
+  `#{cmd}`.chomp
+end
+
 def load_config
   fn = "#{ENV['HOME']}/.slack.conf"
-  webhook_key = :music_channel_webhook_url
+  group_key = :slack_tracks
   ex_webhook_url = 'http://hooks.slack.com/services/yadda/foo/bar/baz'
 
   begin
     conf = YAML.load_file(fn)
   rescue Errno::ENOENT
     File.open(fn, 'w') do |f|
-      f.write({ webhook_key => ex_webhook_url }.to_yaml)
+      f.write({
+        slack_tracks: {
+          webhook: ex_webhook_url,
+          username: syscmd('whoami')
+        }
+      }.to_yaml)
     end
 
     retry
   end
 
-  if conf[webhook_key] == ex_webhook_url
+  conf = conf[:slack_tracks]
+
+  if conf[:webhook] == ex_webhook_url
     $stderr.write("Please edit #{fn}!".red)
-    $stderr.write("\n\nYou must change #{webhook_key} to match the\n")
+    $stderr.write("\n\nYou must change :slack_tracks[:webhook] to match the\n")
     $stderr.write("INCOMING WEBHOOK URL for your channel's integration!\n")
     exit 1
   end
@@ -32,10 +43,6 @@ def load_config
 end
 
 CONF = load_config
-
-def syscmd(cmd)
-  `#{cmd}`.chomp
-end
 
 def is_running?(app_name)
   syscmd("osascript -e 'tell application \"System Events\" to (name of processes) contains \"#{app_name}\"'") == 'true'
@@ -132,7 +139,7 @@ class ITunesMonitor
   def initialize(attrs={})
     @testing = !! attrs[:testing]
     @sent_message = false
-    @username = syscmd("whoami")
+    @username = CONF[:username]
     @last_database_id = nil
   end
 
@@ -169,7 +176,7 @@ class ITunesMonitor
 
         msg = "<#{artist_url}|#{track_artist}> - <#{song_url}|#{track_name}>"
         msg << "\n#{Google::Search::Image.new(:query => "#{track_artist} #{track_album}").first.uri}"
-        RestClient.post(CONF[:music_channel_webhook_url], payload: {
+        RestClient.post(CONF[:webhook], payload: {
           username: @username,
           icon_emoji: ':itunes:',
           text: msg
